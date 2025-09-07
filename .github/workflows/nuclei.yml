@@ -3,73 +3,61 @@ name: Nuclei Scan
 on:
   pull_request:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
+  # uncomment for nightly runs
+  # schedule:
+  #   - cron: "0 1 * * *" # 01:00 UTC
 
 permissions:
   contents: read
 
-env:
-  NUCLEI_TEMPLATES_DIR: ~/.nuclei-templates
-  TARGETS: ${{ secrets.NUCLEI_TARGETS }}
+concurrency:
+  group: nuclei-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   nuclei:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      TARGETS: ${{ secrets.NUCLEI_TARGETS }} # newline-separated URLs
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Pull Nuclei Docker image
-        run: docker pull projectdiscovery/nuclei:latest
-
-      - name: Cache Nuclei templates
-        id: cache-templates
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuclei-templates
-          key: nuclei-templates-${{ runner.os }}-v1
-
-      - name: Update templates (on cache miss)
-        if: steps.cache-templates.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/.nuclei-templates
-          docker run --rm -v $HOME/.nuclei-templates:/root/nuclei-templates projectdiscovery/nuclei:latest \
-            -update -ut /root/nuclei-templates
-
-      - name: Ensure templates are up-to-date (fast check)
-        run: |
-          docker run --rm -v $HOME/.nuclei-templates:/root/nuclei-templates projectdiscovery/nuclei:latest \
-            -ut /root/nuclei-templates
-
-      - name: Run Nuclei (informational mode)
+      - name: Prepare targets file
         run: |
           echo "${TARGETS}" | tr '\r' '\n' | sed '/^$/d' > targets.txt
-          docker run --rm \
-            -v $PWD:/work \
-            -v $HOME/.nuclei-templates:/root/nuclei-templates \
-            projectdiscovery/nuclei:latest \
-            -l /work/targets.txt \
-            -ud /root/nuclei-templates \
-            -rate-limit 50 \
-            -nc \
-            -stats \
-            -jsonl -o /work/nuclei-findings.jsonl
+          echo "Targets:"
+          nl -ba targets.txt
 
-      - name: Summarize into Job Summary
+      # Official action handles templates & execution (no custom cache → no tar race)
+      - name: Nuclei - Vulnerability Scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          urls: "targets.txt"
+          # Keep PRs quick & non-blocking; add -severity later if you want gating
+          flags: "-update -nc -stats -jsonl -o nuclei-findings.jsonl"
+
+      - name: Ensure findings file exists
         run: |
-          echo "### Nuclei Findings Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          [ -f nuclei-findings.jsonl ] || touch nuclei-findings.jsonl
+
+      - name: Job summary (first lines)
+        run: |
+          echo "### Nuclei Findings (preview)" >> $GITHUB_STEP_SUMMARY
           if [ -s nuclei-findings.jsonl ]; then
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            # Show top 30 lines for quick glance
-            head -n 30 nuclei-findings.jsonl >> $GITHUB_STEP_SUMMARY || true
+            head -n 30 nuclei-findings.jsonl >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "No findings produced." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload Nuclei results (artifact)
+      - name: Upload Nuclei results
         uses: actions/upload-artifact@v4
         with:
           name: nuclei-findings
