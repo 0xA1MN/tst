@@ -3,34 +3,39 @@ name: ZAP Baseline
 on:
   pull_request:
   workflow_dispatch:
+  # uncomment to add nightly runs
+  # schedule:
+  #   - cron: "0 1 * * *" # 01:00 UTC
 
 permissions:
   contents: read
 
+concurrency:
+  group: zap-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   zap-baseline:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Run a passive ZAP baseline scan against your staging/dev URL
-      - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: ${{ secrets.ZAP_TARGET }}
-          cmd_options: >
-            -a         # include alpha passive rules
-            -m 1       # max 1 minute spider to stay fast
-            -I         # ignore ZAP exit code (we start informational)
-          rules_file_name: .zap/rules.tsv
-          issue_title: "ZAP Baseline Alerts"
-          fail_action: false  # start non-gating
+      # Ensure a rules file exists (keeps noise manageable without breaking if missing)
+      - name: Ensure .zap/rules.tsv exists
+        run: |
+          mkdir -p .zap
+          if [ ! -f .zap/rules.tsv ]; then
+            printf "# ruleId\tthreshold\taction\n" > .zap/rules.tsv
+          fi
 
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
         with:
-          name: zap-report
-          path: |
-            report_html.html
-            report_json.json
+          target: ${{ secrets.ZAP_TARGET }}        # e.g., https://dev.example.com
+          cmd_options: "-a -m 1 -I"                # alpha passive rules, 1-min spider, ignore exit code
+          rules_file_name: .zap/rules.tsv
+          fail_action: false                       # start non-gating
+          artifact_name: "zap-report"              # action auto-uploads this artifact
