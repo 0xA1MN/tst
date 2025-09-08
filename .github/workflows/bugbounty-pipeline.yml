@@ -175,7 +175,8 @@ jobs:
         env:
           SEMGREP_ENABLE_VERSION_CHECK: "0"
 
-      - name: Upload Semgrep SARIF to GH Code Scanning
+      - name: Upload Semgrep SARIF to GH Code Scanningif: ${{ env.ZAP_TARGET != '' }}
+
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
@@ -235,10 +236,10 @@ jobs:
           echo "### Bug Bounty CI Summary" >> $GITHUB_STEP_SUMMARY
           cat summary.md >> $GITHUB_STEP_SUMMARY
       - name: Slack notify (optional)
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        if: ${{ env.ZAP_TARGET != '' }}
         uses: rtCamp/action-slack-notify@v2
         env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
           SLACK_MESSAGE: |
             Bug Bounty CI finished for ${{ github.repository }}@${{ github.ref_name }}
             See summary: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
