@@ -1,0 +1,18 @@
+# GitHub Actions workflow for CodeQL (optional)
+name: CodeQL
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 1 * * 0"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    uses: github/codeql-action/.github/workflows/codeql.yml@v3
+    with:
+      languages: "javascript,python,go,cpp,java"  # adjust
