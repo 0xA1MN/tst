@@ -5,7 +5,7 @@ on:
         description: "choose env"
         required: true
         default: "staging"
-        type: choise
+        type: choice
         options: 
           - staging
           - production
@@ -15,4 +15,4 @@ jobs:
     runs-on: ubuntu-latest
     steps: 
       - name: Deploy
-        run: echo "Deploy Applicaiton ..."
+        run: echo "Deploy Application to ${{ inputs.environment }}"
