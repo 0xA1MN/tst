@@ -1,4 +1,6 @@
-on: 
+name: Push & PR Tests
+
+on:
   push:
     branches:
       - main
@@ -6,7 +8,7 @@ on:
     paths:
       - "src/**"
   pull_request:
-   branches:
+    branches:
       - main
       - "release/**"
 
@@ -14,7 +16,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout 
-        uses: actions@checkout@v4
-      - name: run tests
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # adjust if needed
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
         run: npm test
