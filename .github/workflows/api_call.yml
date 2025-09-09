@@ -1,0 +1,11 @@
+on:
+  repository_dispatch:
+    types: [incident_report]
+
+jobs:
+  hundle-incident:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print incident details
+        run: echo "Incident reported"
+    
